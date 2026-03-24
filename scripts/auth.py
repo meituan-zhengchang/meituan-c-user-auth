@@ -3,7 +3,8 @@
 meituan-c-user-auth: 美团C端用户Agent认证工具 v1.0.0-SNAPSHOT
 对接 EDS Claw 短信登录接口，管理 user_token 与 device_token。
 
-接口文档：https://km.sankuai.com/collabpage/2751618839
+接口文档：https://km.sankuai.com/collabpage/2752893495（新版）
+旧版文档：https://km.sankuai.com/collabpage/2751618839
 
 用法示例：
   python auth.py version-check
@@ -35,9 +36,8 @@ except ImportError:
 AUTH_KEY       = "meituan-c-user-auth"
 LOCAL_VERSION  = "1.0.0-SNAPSHOT"   # 本文件的版本号，与 SKILL.md 中 version 字段保持一致
 
-# Friday 广场发布页（用于提示用户升级）
-FRIDAY_SKILL_URL = "https://friday.sankuai.com/skills/skill-detail?activeTab=overview&id=12210"
-FRIDAY_SKILL_ID  = "12210"
+# Skill 公开主页（clawhub.ai，外网可访问）
+SKILL_PAGE_URL = "https://clawhub.ai/meituan-zhengchang/meituan-c-user-auth"
 
 
 def _resolve_auth_file() -> Path:
@@ -88,16 +88,16 @@ def _parse_version(text: str) -> str:
 
 def cmd_version_check(remote_version: str = ""):
     """
-    检查本地 Skill 版本，与 Friday 广场发布版本对比。
+    检查本地 Skill 版本，与 clawhub.ai 上的远程版本对比。
 
     设计说明：
-    Friday 广场是 SPA 应用，没有公开 REST API。远程版本需由调用方（小美）通过
-    agent-browser 访问广场页面后，将解析到的版本字符串通过 --remote 参数传入。
+    远程版本需由调用方（小美）通过 WebFetch 访问 clawhub.ai 页面后，
+    将解析到的版本字符串通过 --remote 参数传入。
     若未传入 --remote，则仅展示本地版本信息。
     """
     result = {
         "local_version": LOCAL_VERSION,
-        "friday_url": FRIDAY_SKILL_URL,
+        "skill_page_url": SKILL_PAGE_URL,
     }
 
     remote_ver = remote_version.strip() if remote_version else ""
@@ -107,7 +107,7 @@ def cmd_version_check(remote_version: str = ""):
         result["remote_version"] = None
         result["up_to_date"] = None
         result["message"] = f"当前本地版本：{LOCAL_VERSION}"
-        result["hint"] = f"如需检测最新版本，请访问 Friday 广场：{FRIDAY_SKILL_URL}"
+        result["hint"] = f"如需检测最新版本，请访问：{SKILL_PAGE_URL}"
     elif remote_ver == LOCAL_VERSION:
         result["remote_version"] = remote_ver
         result["up_to_date"] = True
@@ -116,10 +116,10 @@ def cmd_version_check(remote_version: str = ""):
         result["remote_version"] = remote_ver
         result["up_to_date"] = False
         result["message"] = (
-            f"⚠️ 发现新版本！本地：{LOCAL_VERSION}，广场最新：{remote_ver}。"
-            f"建议前往 Friday 广场更新以获取最新能力。"
+            f"⚠️ 发现新版本！本地：{LOCAL_VERSION}，最新：{remote_ver}。"
+            f"建议前往以下地址更新以获取最新能力：{SKILL_PAGE_URL}"
         )
-        result["upgrade_url"] = FRIDAY_SKILL_URL
+        result["upgrade_url"] = SKILL_PAGE_URL
 
     print(json.dumps(result, ensure_ascii=False))
 
@@ -381,6 +381,43 @@ def cmd_send_sms(phone: str):
                 "error": "CLAW_USER_NOT_REGISTERED",
                 "code": 20004,
                 "message": "该手机号未注册美团，请先下载美团APP并完成注册登录"
+            }, ensure_ascii=False))
+            sys.exit(1)
+
+        elif code == 20006:
+            # 单手机号日限（默认5次/天）
+            print(json.dumps({
+                "success": False,
+                "error": "SMS_MOBILE_DAILY_LIMIT",
+                "code": 20006,
+                "message": "该手机号今日发送短信次数已达上限，请明天再试"
+            }, ensure_ascii=False))
+            sys.exit(1)
+
+        elif code == 20007:
+            # 全局日限（默认1000条/天）
+            print(json.dumps({
+                "success": False,
+                "error": "SMS_DAILY_TOTAL_LIMIT",
+                "code": 20007,
+                "message": "短信发送总次数已达今日上限，请明天再试"
+            }, ensure_ascii=False))
+            sys.exit(1)
+
+        elif code == 20010:
+            # Rhino 限流触发，需用户完成安全验证，data.redirectUrl 为跳转链接
+            data = resp_data.get("data") or {}
+            redirect_url = data.get("redirectUrl", "")
+            print(json.dumps({
+                "success": False,
+                "error": "SMS_SECURITY_VERIFY_REQUIRED",
+                "code": 20010,
+                "redirect_url": redirect_url,
+                "message": (
+                    "需要完成安全验证后才能接收短信验证码。"
+                    f"请点击以下链接完成验证：{redirect_url}。"
+                    "完成验证后，系统会自动发送短信验证码，请留意手机短信。"
+                ) if redirect_url else "需要完成安全验证，请稍后重试"
             }, ensure_ascii=False))
             sys.exit(1)
 

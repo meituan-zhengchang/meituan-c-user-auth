@@ -36,21 +36,29 @@
 
 ## 错误码说明
 
-| 错误码 | 枚举名 | 描述 | 涉及接口 |
-|--------|--------|------|---------|
-| 0 | SUCCESS | 成功 | 全部 |
-| 20000 | SMS_SEND_FAIL | 短信发送失败 | 发送验证码 |
-| 20001 | SMS_MOBILE_TOKEN_ENCRYPT_FAIL | 手机号短信验证服务调 Token 加密服务失败，服务端正在处理中，请稍后重试 | 发送验证码 |
-| 20002 | SMS_VERIFY_CODE_EXIST | 短信验证码已发送，请1分钟后再试 | 发送验证码 |
-| 20003 | SMS_VERIFY_CODE_ERROR | 短信验证码错误 | 验证验证码 |
-| 20004 | CLAW_USER_NOT_REGISTERED | 手机号未注册美团，请先下载美团APP并完成注册登录 | 发送/验证验证码 |
-| 20005 | CLAW_USER_NOT_LOGIN | 用户未登录或 Token 已过期 | 验证 Token |
-| 99997 | SYSTEM_ERROR | 系统繁忙，请稍后再试（含限流） | 全部 |
-| 99999 | PARAM_ERROR | 参数错误（手机号为空/格式非法/验证码为空） | 全部 |
+> 来源：新版接口文档 https://km.sankuai.com/collabpage/2752893495（2026-03-24 更新）
+
+| 错误码 | 描述 | 涉及接口 |
+|--------|------|---------|
+| 0 | 成功 | 全部 |
+| 20000 | 短信发送失败 | 发送验证码 |
+| 20001 | 手机号 Token 加密失败，服务端处理中，稍后重试 | 发送验证码 |
+| 20002 | 短信验证码已发送，请1分钟后再试 | 发送验证码 |
+| 20003 | 短信验证码错误或已过期 | 验证验证码 |
+| 20004 | 手机号未注册美团，请先下载美团APP并完成注册登录 | 发送/验证验证码 |
+| 20005 | 用户未登录或 Token 已过期 | 验证 Token |
+| 20006 | 该手机号今日发送短信次数已达上限（默认5次/天） | 发送验证码 |
+| 20007 | 短信发送总次数已达今日上限（默认1000条/天，全局兜底） | 发送验证码 |
+| 20010 | 短信发送限流，需完成安全验证；`data.redirectUrl` 为跳转链接 | 发送验证码 |
+| 99997 | 系统繁忙，请稍后再试（含 Rhino 限流） | 全部 |
+| 99998 | 未知异常 | 全部 |
+| 99999 | 参数错误（手机号为空/格式非法/验证码为空） | 全部 |
 
 > 有效期说明：
-> - 验证码有效期：**60 秒**（MDP 配置：`claw.verify.code.sms.expire.seconds`）
-> - 登录 Token 有效期：**7 天**（MDP 配置：`claw.login.token.expire.seconds`）
+> - 验证码有效期：**60 秒**（Lion 配置：`claw.verify.code.sms.expire.seconds`）
+> - 登录 Token 有效期：**7 天**（Lion 配置：`claw.login.token.expire.seconds`）
+> - 手机号日限：**5次/天**（Lion 配置：`claw.sms.mobile.daily.limit`）
+> - 全局日限：**1000条/天**（Lion 配置：`claw.sms.daily.total.limit`）
 
 ---
 
@@ -173,7 +181,11 @@ POST https://pepper.mall.test.sankuai.com/eds/claw/login/token/verify?token=xxxx
 
 ```
 1. POST /login/sms/code/get { mobile }
-   ↓ 验证码有效期 60 秒
+   ↓ code=0 → 验证码有效期 60 秒，继续步骤2
+   ↓ code=20010 → data.redirectUrl 非空
+       → 引导用户点击链接完成安全验证
+       → 验证完成后，后端自动触发短信发送
+       → 用户收到验证码后，跳到步骤3（无需再次调 code/get）
 2. 用户收到短信验证码
 3. POST /login/sms/code/verify { mobile, smsVerifyCode }
 4. 返回 token（有效期 7 天），完成登录
