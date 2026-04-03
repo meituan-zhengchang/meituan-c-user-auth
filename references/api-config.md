@@ -56,7 +56,7 @@
 
 > 有效期说明：
 > - 验证码有效期：**60 秒**（Lion 配置：`claw.verify.code.sms.expire.seconds`）
-> - 登录 Token 有效期：**7 天**（Lion 配置：`claw.login.token.expire.seconds`）
+> - 登录 Token 有效期：由服务端 Lion 配置决定（`claw.login.token.expire.seconds`），**不在 Agent 本地做过期校验，以 token-verify 接口返回为准**
 > - 手机号日限：**5次/天**（Lion 配置：`claw.sms.mobile.daily.limit`）
 > - 全局日限：**1000条/天**（Lion 配置：`claw.sms.daily.total.limit`）
 
@@ -130,7 +130,7 @@ Content-Type: application/json
 }
 ```
 
-> `token` 有效期 **7 天**
+> `token` 有效期由服务端配置决定，以服务端校验为准
 
 **异常情况：**
 
@@ -210,9 +210,7 @@ POST https://pepper.mall.test.sankuai.com/eds/claw/login/token/verify?token=xxxx
   "meituan-c-user-auth": {
     "user_token": "...",
     "phone_masked": "138****0000",
-    "expires_at": 1234567890,
-    "authed_at": 1234567890,
-    "is_test_env": false
+    "authed_at": 1234567890
   }
 }
 ```
